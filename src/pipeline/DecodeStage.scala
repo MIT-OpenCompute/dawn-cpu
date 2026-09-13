@@ -9,7 +9,7 @@ object WriteMode extends ChiselEnum {
 }
 
 object PeType extends ChiselEnum {
-    val Alu, Lsu, JumpUnit = Value
+    val Alu, Lsu, JumpUnit, Malu = Value
 }
 
 class InstructionBundle extends Bundle {
@@ -138,6 +138,9 @@ class DecodeStage() extends Module {
 
             is("b0110011".U) { // REGISTER MATH
                 pe_type := PeType.Alu
+                when(decoder.io.func7 === "b0000001".U){
+                    pe_type := PeType.Malu
+                }
                 write_mode := WriteMode.Register
 
                 when(decoder.io.rd === 0.U) {

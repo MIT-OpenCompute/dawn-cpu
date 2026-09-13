@@ -22,6 +22,10 @@ class InstructionDispatchQueue() extends Module {
         val alu_out_valid = Output(Bool())
         val alu_ready = Input(Bool())
 
+        val malu_out = Output(new InstructionBundle())
+        val malu_out_valid = Output(Bool())
+        val malu_ready = Input(Bool())
+
         val lsu_out = Output(new InstructionBundle())
         val lsu_out_valid = Output(Bool())
         val lsu_ready = Input(Bool())
@@ -58,7 +62,7 @@ class InstructionDispatchQueue() extends Module {
                 queueEntry.instruction.rs2_dependence_counter === 0.U &&
                 queueEntry.instruction.rd_dependence_counter === 0.U &&
                 (
-                  (io.alu_ready && queueEntry.instruction.pe_type === PeType.Alu) ||
+                  (io.alu_ready && queueEntry.instruction.pe_type === PeType.Alu)||(io.malu_ready && queueEntry.instruction.pe_type === PeType.Malu) ||
                       (io.lsu_ready && queueEntry.instruction.pe_type === PeType.Lsu && queueEntry.instruction.reorder_pointer === io.reorder_buffer_tail) ||
                       (io.jump_unit_ready && queueEntry.instruction.pe_type === PeType.JumpUnit && queueEntry.instruction.reorder_pointer === io.reorder_buffer_tail)
                 )
@@ -113,6 +117,9 @@ class InstructionDispatchQueue() extends Module {
 
     io.alu_out := queue(first_valid_entry).instruction
     io.alu_out_valid := first_valid_entry_valid && queue(first_valid_entry).instruction.pe_type === PeType.Alu
+
+    io.malu_out := queue(first_valid_entry).instruction
+    io.malu_out_valid := first_valid_entry_valid && queue(first_valid_entry).instruction.pe_type === PeType.Malu
 
     when(first_valid_entry_valid) {
         queue(first_valid_entry).valid := false.B

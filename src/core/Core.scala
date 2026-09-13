@@ -37,6 +37,7 @@ class Core() extends Module {
     val read_stage = Module(new ReadStage())
     val instruction_dispatch_queue = Module(new InstructionDispatchQueue())
     val alu_pe = Module(new Alu)
+    val malu_pe = Module(new Malu)
     val lsu_pe = Module(new Lsu)
     val jump_unit = Module(new JumpUnit)
     val reorder_buffer = Module(new ReorderBuffer())
@@ -122,14 +123,18 @@ class Core() extends Module {
 
     instruction_dispatch_queue.io.instruction := read_stage.io.next_instruction
     instruction_dispatch_queue.io.valid := read_stage.io.next_valid
-    instruction_dispatch_queue.io.broadcast_free_valid := lsu_pe.io.broadcast_free_valid || alu_pe.io.broadcast_free_valid || jump_unit.io.broadcast_free_valid
+    instruction_dispatch_queue.io.broadcast_free_valid := lsu_pe.io.broadcast_free_valid || alu_pe.io.broadcast_free_valid || malu_pe.io.broadcast_free_valid || jump_unit.io.broadcast_free_valid
     instruction_dispatch_queue.io.broadcast_free_value :=  Mux(
         jump_unit.io.broadcast_free_valid,
         jump_unit.io.broadcast_free_value,
         Mux(
             lsu_pe.io.broadcast_free_valid,
             lsu_pe.io.broadcast_free_value,
-            alu_pe.io.broadcast_free_value
+            Mux(
+                alu_pe.io.broadcast_free_valid,
+                alu_pe.io.broadcast_free_value,
+                malu_pe.io.broadcast_free_value
+            )
         )
     )
     instruction_dispatch_queue.io.broadcast_free_register := Mux(
@@ -138,12 +143,17 @@ class Core() extends Module {
         Mux(
             lsu_pe.io.broadcast_free_valid,
             lsu_pe.io.broadcast_free_register,
-            alu_pe.io.broadcast_free_register
+            Mux(
+                alu_pe.io.broadcast_free_valid,
+                alu_pe.io.broadcast_free_register,
+                malu_pe.io.broadcast_free_register
+            )
         )
     )
     instruction_dispatch_queue.io.jump_unit_ready := jump_unit.io.ready
     instruction_dispatch_queue.io.lsu_ready := lsu_pe.io.ready
     instruction_dispatch_queue.io.alu_ready := alu_pe.io.ready
+    instruction_dispatch_queue.io.malu_ready := malu_pe.io.ready
     instruction_dispatch_queue.io.reorder_buffer_tail := reorder_buffer.io.tail
     instruction_dispatch_queue.io.flush := jump_unit.io.flush
     instruction_dispatch_queue.io.debug := io.debug
@@ -195,6 +205,17 @@ class Core() extends Module {
     alu_pe.io.lsu_broadcast_valid := lsu_pe.io.broadcast_free_valid
     alu_pe.io.flush := jump_unit.io.flush
 
+    malu_pe.io.instruction := instruction_dispatch_queue.io.malu_out
+    malu_pe.io.valid := instruction_dispatch_queue.io.malu_out_valid
+    malu_pe.io.next_ready := !reorder_buffer.io.full
+    malu_pe.io.lsu_broadcast_valid := lsu_pe.io.broadcast_free_valid
+    malu_pe.io.alu_broadcast_valid := alu_pe.io.broadcast_free_valid
+    malu_pe.io.jump_broadcast_valid := jump_unit.io.broadcast_free_valid
+    malu_pe.io.flush := jump_unit.io.flush
+    malu_pe.io.lsu_out_valid := lsu_pe.io.out_valid
+    malu_pe.io.alu_out_valid := alu_pe.io.out_valid
+    malu_pe.io.jump_out_valid := jump_unit.io.out_valid
+
     reorder_buffer.io.buffer_entry.value := decode_stage.io.next_instruction.rd_value
     reorder_buffer.io.buffer_entry.rd := decode_stage.io.next_instruction.rd
     reorder_buffer.io.buffer_entry.program_pointer := decode_stage.io.next_instruction.instruction_pointer
@@ -210,11 +231,11 @@ class Core() extends Module {
     // printf("ALU out: %b\n", alu_pe.io.out_valid)
 
     reorder_buffer.io.complete_instruction := Mux(
-      jump_unit.io.out_valid,
-      jump_unit.io.out,
-      Mux(lsu_pe.io.out_valid, lsu_pe.io.out, alu_pe.io.out)
-    )
-    reorder_buffer.io.complete_valid := jump_unit.io.out_valid || lsu_pe.io.out_valid || alu_pe.io.out_valid
+        jump_unit.io.out_valid,
+        jump_unit.io.out,
+        Mux(lsu_pe.io.out_valid, lsu_pe.io.out, Mux(alu_pe.io.out_valid, alu_pe.io.out, malu_pe.io.out))
+      )
+    reorder_buffer.io.complete_valid := jump_unit.io.out_valid || lsu_pe.io.out_valid || alu_pe.io.out_valid || malu_pe.io.out_valid
     reorder_buffer.io.flush := jump_unit.io.flush
 
     io.program_pointer := program_pointer
