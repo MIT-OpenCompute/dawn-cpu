@@ -22,34 +22,14 @@ static constexpr int V_TOTAL   = V_VISIBLE + V_FRONT + V_SYNC + V_BACK;
 
 static constexpr uint32_t AXI_ADDR_MASK = 0x07FFFFFF;
 
-// ----------------------------------------------------------------------
-// NUM_BEATS: must match the NUM_BEATS used to build the Verilog design
-// (ddr4_line_memory / the top module). Everything below is derived from
-// it -- io_mem_req_bits_wdata/io_mem_resp are (NUM_BEATS*128)-bit ports,
-// which Verilator represents as arrays of NUM_BEATS*4 uint32_t words
-// (any port over 64 bits becomes a uint32_t[] with ceil(width/32) words).
-// Bump this one constant when NUM_BEATS changes in the RTL.
-// ----------------------------------------------------------------------
 static constexpr int NUM_BEATS       = 4;
 static constexpr int LINE_BYTES      = NUM_BEATS * 16;
-static constexpr int WORDS_PER_LINE  = NUM_BEATS * 4;   // 32-bit words per line
+static constexpr int WORDS_PER_LINE  = NUM_BEATS * 4;  
 
 
 static constexpr long long CYCLE_LIMIT = -1;
 
-// ----------------------------------------------------------------------
-// Mock memory latency. Bump these to stress-test timing-sensitive paths
-// (non-blocking load overlap, CDC handshaking, etc.) that low, fixed
-// latency may never exercise. READ_LATENCY_CYCLES/WRITE_LATENCY_CYCLES
-// are the cycle counts the mock waits after accepting a request before
-// asserting io_mem_valid -- same units as the old hardcoded 4 / 1.
-//
-// Set RANDOMIZE_LATENCY to true to jitter each request's latency within
-// [*_LATENCY_MIN, *_LATENCY_MAX] instead of using a fixed value -- this
-// is often more effective at surfacing race conditions than just raising
-// a fixed number, since real DDR4 latency isn't perfectly constant either
-// (refresh, bank conflicts, etc. all add variable delay).
-// ----------------------------------------------------------------------
+
 static constexpr int  READ_LATENCY_CYCLES  = 4;
 static constexpr int  WRITE_LATENCY_CYCLES = 4;
 
@@ -146,19 +126,21 @@ int main(int argc, char** argv) {
 
     std::map<uint32_t, std::vector<uint8_t>> mock_ddr3;
 
-    std::ifstream file("/home/arya/Documents/Github/hopper-cpu/programs/doom.hex");
-    if (!file.is_open()) {
-        printf("Error: Could not open hello.hex file!\n");
-        return -1;
+    if (argc < 2) {
+        fprintf(stderr, "Usage: %s <path-to-bin-file>\n", argv[0]);
+        return 1;
     }
 
-    std::string line;
+    std::ifstream file(argv[1], std::ios::binary);
+    if (!file) {
+        fprintf(stderr, "Failed to open file: %s\n", argv[1]);
+        return 1;
+    }
+
     uint32_t current_byte_addr = 0;
+    uint32_t instruction;
 
-    while (std::getline(file, line)) {
-        if (line.empty()) continue;
-        uint32_t instruction = std::stoul(line, nullptr, 16);
-
+    while (file.read(reinterpret_cast<char*>(&instruction), sizeof(instruction))) {
         uint32_t line_base_addr = (axi_window(current_byte_addr) / LINE_BYTES) * LINE_BYTES;
         uint32_t byte_offset    = current_byte_addr % LINE_BYTES;
 
@@ -173,7 +155,7 @@ int main(int argc, char** argv) {
 
         current_byte_addr += 4;
     }
-    printf("Preloaded %d instructions into mock DDR3 space (NUM_BEATS=%d, LINE_BYTES=%d).\n",
+    printf("Preloaded %d instructions into mock DDR4 space (NUM_BEATS=%d, LINE_BYTES=%d).\n",
            current_byte_addr / 4, NUM_BEATS, LINE_BYTES);
     if (limited) {
         printf("Cycle limit set: will stop after %lld cycles.\n", CYCLE_LIMIT);

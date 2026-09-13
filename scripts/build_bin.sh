@@ -1,11 +1,3 @@
 ./xpack-riscv-none-elf-gcc-15.2.0-1/bin/riscv-none-elf-gcc -c -O3 -march=rv32i -mabi=ilp32 $1 -o ./generated/program.o
 ./xpack-riscv-none-elf-gcc-15.2.0-1/bin/riscv-none-elf-gcc -march=rv32i -mabi=ilp32 -nostdlib "-Wl,--section-start=.text=0x0,--entry=_start" -o ./generated/program.elf ./generated/program.o -lgcc
 ./xpack-riscv-none-elf-gcc-15.2.0-1/bin/riscv-none-elf-objcopy -O binary ./generated/program.elf ./generated/program.bin
-
-cd generated
-verilator --cc --exe --build -j 0 \
---x-assign unique --x-initial unique \
--CFLAGS "-g -O3" \
-../simulation/simulate_program.cpp -f filelist.f --top Main
-./obj_dir/VMain ./program.bin
-# ./obj_dir/VMain /home/arya/Documents/Github/doom-hopper/doomgeneric/doomgeneric.bin
