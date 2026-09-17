@@ -44,8 +44,16 @@ class MemoryInterface(lineWidth: Int = 128) extends Module {
   val dcache = Module(new DCache(lineWidth))
   val arbiter = Module(new CacheArbiter(lineWidth))
   val dcache_queue = Module(new DCacheQueue(lineWidth))
+  val l2_cache = Module(new L2Cache(lineWidth))
 
-  
+  io.mem_req <> l2_cache.io.mem_req
+  l2_cache.io.mem_resp := io.mem_resp
+  l2_cache.io.mem_valid := io.mem_valid
+
+  l2_cache.io.req  <> arbiter.io.mem_req
+  arbiter.io.mem_resp:= l2_cache.io.mem_resp_in
+  arbiter.io.mem_valid := l2_cache.io.mem_valid_in
+
   icache.io.req := io.icache_req
   icache.io.start := io.icache_start 
   io.icache_ready := icache.io.ready 
@@ -89,20 +97,27 @@ class MemoryInterface(lineWidth: Int = 128) extends Module {
 
 
 
-  io.mem_req.valid := arbiter.io.mem_req.valid
-  io.mem_req.bits.write := arbiter.io.mem_req.bits.write
-  io.mem_req.bits.addr := arbiter.io.mem_req.bits.addr
-  io.mem_req.bits.wdata := arbiter.io.mem_req.bits.wdata
+  // io.mem_req.valid := arbiter.io.mem_req.valid
+  // io.mem_req.bits.write := arbiter.io.mem_req.bits.write
+  // io.mem_req.bits.addr := arbiter.io.mem_req.bits.addr
+  // io.mem_req.bits.wdata := arbiter.io.mem_req.bits.wdata
 
-  arbiter.io.mem_req.ready :=  io.mem_req.ready
-  arbiter.io.mem_resp := io.mem_resp
-  arbiter.io.mem_valid := io.mem_valid 
+  // arbiter.io.mem_req.ready :=  io.mem_req.ready
+  // arbiter.io.mem_resp := io.mem_resp
+  // arbiter.io.mem_valid := io.mem_valid 
 
-  icache.io.line_result := io.mem_resp
+  icache.io.line_result := l2_cache.io.mem_resp_in
   icache.io.line_valid := arbiter.io.resp_to_cache(1)
   
-  dcache.io.line_result := io.mem_resp
+  dcache.io.line_result := l2_cache.io.mem_resp_in
   dcache.io.line_valid := arbiter.io.resp_to_cache(0)
+
+
+
+  // when(true.B){
+    
+  // }
+
 }
 
 object MemoryInterface extends App {

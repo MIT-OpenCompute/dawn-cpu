@@ -26,10 +26,14 @@ class DCache( lineWidth: Int = 128) extends Module {
         val line_valid = Input(Bool())
     })
 
-    val CACHE_SETS = 512
+    
+    val CACHE_SETS = 256
     val LINE_WIDTH_WORDS = lineWidth/32
     val LOG_CACHE_SETS = log2Up(CACHE_SETS)
     val LOG_LINE_WIDTH_WORDS = log2Up(LINE_WIDTH_WORDS)
+
+    // val hitCounter = RegInit(0.U(32.W))
+    // val missCounter = RegInit(0.U(32.W))
     
     val byte_offset = Wire(UInt(2.W))
     val cache_index = Wire(UInt(LOG_CACHE_SETS.W))
@@ -55,8 +59,8 @@ class DCache( lineWidth: Int = 128) extends Module {
     byte_offset := getByteOffset(lookup_address_reg)
     cache_index := getIndex(lookup_address_reg)
     word_offset := getWordOffset(lookup_address_reg)
-    cache_tag   := getTag(lookup_address_reg)
-    line_addr   := getLineAddr(lookup_address_reg)
+    cache_tag := getTag(lookup_address_reg)
+    line_addr := getLineAddr(lookup_address_reg)
 
     // Addressing index inputs straight out to the asynchronous memory blocks
     val raw_index = getIndex(lookup_address)
@@ -65,11 +69,11 @@ class DCache( lineWidth: Int = 128) extends Module {
     val data_out = data_array.read(raw_index, read_enable)
     val meta_out = meta_array.read(raw_index, read_enable) 
 
-    val data_wr_en   = WireDefault(false.B)
+    val data_wr_en = WireDefault(false.B)
     val data_wr_data = WireDefault(0.U((32 * LINE_WIDTH_WORDS).W))
-    val meta_wr_en   = WireDefault(false.B)
+    val meta_wr_en  = WireDefault(false.B)
     val meta_wr_data = WireDefault(0.U(meta_array.t.getWidth.W))
-    val write_addr   = getIndex(current_mem_req.address)
+    val write_addr = getIndex(current_mem_req.address)
 
     io.done := false.B
     io.miss := false.B
@@ -103,6 +107,7 @@ class DCache( lineWidth: Int = 128) extends Module {
 
         is(CacheState.LOOKUP) {
             when(cache_tag === tag && status(1) === 1.U) { // HIT
+                //    hitCounter := hitCounter +1.U
                     when(io.start){
                         current_mem_req := io.req
                         state := CacheState.LOOKUP
@@ -174,7 +179,8 @@ class DCache( lineWidth: Int = 128) extends Module {
                         }
                     }
                 }
-            }.otherwise { // MISS
+            }.otherwise { // 
+                // missCounter := missCounter + 1.U
                 when(status === "b11".U) { 
                     wb_data_reg := data_out
                     wb_addr_reg := Cat(tag, getIndex(current_mem_req.address), 0.U((LOG_LINE_WIDTH_WORDS + 2).W))

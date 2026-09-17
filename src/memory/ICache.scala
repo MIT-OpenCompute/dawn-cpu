@@ -30,7 +30,7 @@ class ICache(lineWidth: Int = 128) extends Module {
     })
 
 
-    val CACHE_SETS = 512
+    val CACHE_SETS = 256
     val LINE_WIDTH_WORDS = lineWidth/32
     val LOG_CACHE_SETS = log2Up(CACHE_SETS)
     val LOG_LINE_WIDTH_WORDS = log2Up(LINE_WIDTH_WORDS)
