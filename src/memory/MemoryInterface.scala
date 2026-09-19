@@ -32,28 +32,17 @@ class MemoryInterface(lineWidth: Int = 128) extends Module {
     val dcache_rd_out = Output(UInt(5.W))
     val dcache_wen_out = Output(Bool())
 
+    val bus_req   = Vec(2, Decoupled(new MemLineReq(lineWidth)))
+    val bus_resp  = Input(UInt(lineWidth.W))
+    val bus_grant = Input(Vec(2, Bool()))
 
-    val mem_req = Decoupled(new MemLineReq(lineWidth))   
-    val mem_resp = Input(UInt(lineWidth.W))
-    val mem_valid = Input(Bool())      
-
-    
 
 })
   val icache = Module(new ICache(lineWidth))
   val dcache = Module(new DCache(lineWidth))
-  val arbiter = Module(new CacheArbiter(lineWidth))
   val dcache_queue = Module(new DCacheQueue(lineWidth))
-  val l2_cache = Module(new L2Cache(lineWidth))
 
-  io.mem_req <> l2_cache.io.mem_req
-  l2_cache.io.mem_resp := io.mem_resp
-  l2_cache.io.mem_valid := io.mem_valid
-
-  l2_cache.io.req  <> arbiter.io.mem_req
-  arbiter.io.mem_resp:= l2_cache.io.mem_resp_in
-  arbiter.io.mem_valid := l2_cache.io.mem_valid_in
-
+  
   icache.io.req := io.icache_req
   icache.io.start := io.icache_start 
   io.icache_ready := icache.io.ready 
@@ -81,16 +70,16 @@ class MemoryInterface(lineWidth: Int = 128) extends Module {
   io.dcache_wen_out := dcache_queue.io.wen
 
 
-  arbiter.io.cache_req(1).valid  := icache.io.miss
-  arbiter.io.cache_req(1).bits.addr:= icache.io.line_addr
-  arbiter.io.cache_req(1).bits.write :=  false.B
-  arbiter.io.cache_req(1).bits.wdata:= 0.U
+  io.bus_req(1).valid  := icache.io.miss
+  io.bus_req(1).bits.addr:= icache.io.line_addr
+  io.bus_req(1).bits.write :=  false.B
+  io.bus_req(1).bits.wdata:= 0.U
 
 
-  arbiter.io.cache_req(0).valid  := (dcache.io.miss || dcache.io.wb) 
-  arbiter.io.cache_req(0).bits.addr:= Mux(dcache.io.wb, dcache.io.wb_addr, dcache.io.line_addr)
-  arbiter.io.cache_req(0).bits.write :=  dcache.io.wb
-  arbiter.io.cache_req(0).bits.wdata:= dcache.io.wb_data
+  io.bus_req(0).valid  := (dcache.io.miss || dcache.io.wb) 
+  io.bus_req(0).bits.addr:= Mux(dcache.io.wb, dcache.io.wb_addr, dcache.io.line_addr)
+  io.bus_req(0).bits.write :=  dcache.io.wb
+  io.bus_req(0).bits.wdata:= dcache.io.wb_data
 
 
   
@@ -106,11 +95,11 @@ class MemoryInterface(lineWidth: Int = 128) extends Module {
   // arbiter.io.mem_resp := io.mem_resp
   // arbiter.io.mem_valid := io.mem_valid 
 
-  icache.io.line_result := l2_cache.io.mem_resp_in
-  icache.io.line_valid := arbiter.io.resp_to_cache(1)
+  icache.io.line_result := io.bus_resp
+  icache.io.line_valid := io.bus_grant(1)
   
-  dcache.io.line_result := l2_cache.io.mem_resp_in
-  dcache.io.line_valid := arbiter.io.resp_to_cache(0)
+  dcache.io.line_result := io.bus_resp
+  dcache.io.line_valid := io.bus_grant(0)
 
 
 

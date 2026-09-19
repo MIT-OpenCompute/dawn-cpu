@@ -26,9 +26,9 @@ class MemoryWrapper(lineWidth: Int = 128, clockFreq: Int = 167000000, baud: Int 
 
 
 
-    val mem_req = Decoupled(new MemLineReq(lineWidth))   
-    val mem_resp = Input(UInt(lineWidth.W))
-    val mem_valid = Input(Bool()) 
+    val bus_req   = Vec(2, Decoupled(new MemLineReq(lineWidth)))
+    val bus_resp  = Input(UInt(lineWidth.W))
+    val bus_grant = Input(Vec(2, Bool()))
 
     val address_vga = Output(UInt(32.W))
     val write_vga = Output(Bool())
@@ -161,9 +161,9 @@ class MemoryWrapper(lineWidth: Int = 128, clockFreq: Int = 167000000, baud: Int 
 
 
 
-  io.mem_req <> mem.io.mem_req
-  mem.io.mem_resp := io.mem_resp
-  mem.io.mem_valid := io.mem_valid
+  io.bus_req <> mem.io.bus_req
+  mem.io.bus_resp  := io.bus_resp
+  mem.io.bus_grant := io.bus_grant
 
 
    //i needs a handshake bypass

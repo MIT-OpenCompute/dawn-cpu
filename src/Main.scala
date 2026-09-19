@@ -31,16 +31,21 @@ class Main(lineWidth: Int = 512)  extends Module {
     })
     val memory = Module(new MemoryWrapper(lineWidth))
 
-    // val memory2 = Module(new Memory())
     val vga_controller = Module(new VGAController())
     val core = Module(new Core())
+    val uncore = Module(new Uncore(lineWidth))
 
-    // memory2.io.btns := io.btns
+    for (j <- 0 until 2) {
+      uncore.io.bus_req(j) <> memory.io.bus_req(j)
+      memory.io.bus_grant(j) := uncore.io.bus_grant(j)
+    }
+    memory.io.bus_resp := uncore.io.bus_resp
 
-    // val memory_requested_1 = RegInit(false.B)
-    // when(memory_requested_1) {
-    //     memory_requested_1 := false.B
-    // }
+    io.mem_req <> uncore.io.mem_req
+    uncore.io.mem_resp := io.mem_resp
+    uncore.io.mem_valid := io.mem_valid
+
+   
 
     memory.io.icache_req.address := core.io.program_memory_address
     memory.io.icache_req.write_data := 0.U
@@ -52,9 +57,7 @@ class Main(lineWidth: Int = 512)  extends Module {
     core.io.program_memory_valid := memory.io.icache_valid
     core.io.program_memory_value := memory.io.icache_data
 
-    // when(core.io.program_memory_requested) {
-    //     memory_requested_1 := true.B
-    // }
+
 
 
     core.io.dcache_ready := memory.io.dcache_ready
@@ -67,10 +70,6 @@ class Main(lineWidth: Int = 512)  extends Module {
     memory.io.dcache_rd := core.io.dcache_rd
     memory.io.dcache_wen := core.io.dcache_wen
 
-
-    io.mem_req       <> memory.io.mem_req
-    memory.io.mem_resp := io.mem_resp
-    memory.io.mem_valid := io.mem_valid
 
     memory.io.rxd := io.rxd
     io.txd := memory.io.txd
@@ -88,16 +87,7 @@ class Main(lineWidth: Int = 512)  extends Module {
     core.io.execute := io.execute
     core.io.debug := 0.U
 
-    // when(!io.execute) {
-    //     printf("Loading...\n");
 
-    //     when(io.flash) {
-    //         memory2.io.read_1 := false.B
-    //         memory2.io.write_1 := true.B
-    //         memory2.io.address_1 := io.flash_address
-    //         memory2.io.write_value_1 := io.flash_value
-    //     }
-    // }
 
     io.program_pointer := core.io.program_pointer
 
