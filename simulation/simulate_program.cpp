@@ -385,10 +385,10 @@ int main(int argc, char** argv) {
         frames++;
         const auto now = std::chrono::steady_clock::now();
         const double dt = std::chrono::duration<double>(now - t_frame).count();
-        printf("[frame %lld] %lld cycles in %.2fs (%.1f kHz, %.1f kHz avg)\n",
-               frames, total_cycles - frame_start_cycle, dt,
-               dt > 0 ? (total_cycles - frame_start_cycle) / dt / 1000.0 : 0.0,
-               total_cycles / std::chrono::duration<double>(now - t_start).count() / 1000.0);
+        // printf("[frame %lld] %lld cycles in %.2fs (%.1f kHz, %.1f kHz avg)\n",
+        //        frames, total_cycles - frame_start_cycle, dt,
+        //        dt > 0 ? (total_cycles - frame_start_cycle) / dt / 1000.0 : 0.0,
+        //        total_cycles / std::chrono::duration<double>(now - t_start).count() / 1000.0);
         fflush(stdout);
         t_frame = now;
         frame_start_cycle = total_cycles;
