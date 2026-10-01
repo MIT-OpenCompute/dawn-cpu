@@ -3,7 +3,9 @@ import sys
 with open(sys.argv[1], "rb") as f:
     data = bytearray(f.read())
 
-output = sys.argv[1].rsplit(".", 1)[0] + ".hex"
+# load.sh passes an explicit destination; honour it when given, and fall back
+# to deriving the name beside the input for standalone use.
+output = sys.argv[2] if len(sys.argv) > 2 else sys.argv[1].rsplit(".", 1)[0] + ".hex"
 
 # -------------------------------------------------------
 # Byte-level sanitization
