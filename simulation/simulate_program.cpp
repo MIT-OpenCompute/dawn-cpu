@@ -13,6 +13,48 @@
 
 #ifndef DAWN_SLOW_CLOCK
 #include "VMain___024root.h"
+#include <type_traits>
+
+// Verilator saves a "previous value" per clock per trigger region so it can
+// spot edges. The fast clocking in advance_cycle() drops the clock low and
+// rewrites those saved values to 0, so the next posedge is detected without
+// paying for a second eval() of the whole model.
+//
+// Where that state lives is a Verilator internal, and it has already moved
+// once: 5.040 emitted a single `__0` set shared by the input-settle (ico) and
+// clocked (act) regions, while 5.052 vectorised the trigger code and split
+// them, putting the posedge that actually clocks the design in a new `__1`
+// set. Clearing only `__0` against 5.052 compiles clean, runs exactly one
+// cycle, then freezes the model forever. So detect every set that exists and
+// clear all of them -- and see check_clock_runs() for the backstop that
+// catches the next set Verilator invents.
+template <class, class = void>
+struct dawn_has_ico_edge : std::false_type {};
+template <class R>
+struct dawn_has_ico_edge<R, std::void_t<decltype(R::__Vtrigprevexpr___TOP__clock__0)>>
+    : std::true_type {};
+
+template <class, class = void>
+struct dawn_has_act_edge : std::false_type {};
+template <class R>
+struct dawn_has_act_edge<R, std::void_t<decltype(R::__Vtrigprevexpr___TOP__clock__1)>>
+    : std::true_type {};
+
+template <class R>
+static inline void dawn_clear_clock_edges(R* r) {
+    static_assert(dawn_has_ico_edge<R>::value || dawn_has_act_edge<R>::value,
+                  "no __Vtrigprevexpr___TOP__clock__N field found: this Verilator "
+                  "renamed its edge-detect state. Rebuild with -DDAWN_SLOW_CLOCK, or "
+                  "teach dawn_clear_clock_edges() the new name.");
+    if constexpr (dawn_has_ico_edge<R>::value) {
+        r->__Vtrigprevexpr___TOP__clock__0 = 0;
+        r->__Vtrigprevexpr___TOP__io_vga_clk__0 = 0;
+    }
+    if constexpr (dawn_has_act_edge<R>::value) {
+        r->__Vtrigprevexpr___TOP__clock__1 = 0;
+        r->__Vtrigprevexpr___TOP__io_vga_clk__1 = 0;
+    }
+}
 #endif
 
 static constexpr int H_VISIBLE = 640;
@@ -40,8 +82,8 @@ static constexpr int WORDS_PER_LINE  = NUM_BEATS * 4;
 static constexpr long long CYCLE_LIMIT = -1;
 
 
-static constexpr int  READ_LATENCY_CYCLES  = 250;
-static constexpr int  WRITE_LATENCY_CYCLES = 250;
+static constexpr int  READ_LATENCY_CYCLES  = 5;
+static constexpr int  WRITE_LATENCY_CYCLES = 5;
 
 static constexpr bool RANDOMIZE_LATENCY = false;
 static constexpr int  READ_LATENCY_MIN  = 4;
@@ -227,9 +269,24 @@ static inline void advance_cycle(const std::unique_ptr<VMain>& dut) {
 #else
     dut->clock = 0;
     dut->io_vga_clk = 0;
-    dut->rootp->__Vtrigprevexpr___TOP__clock__0 = 0;
-    dut->rootp->__Vtrigprevexpr___TOP__io_vga_clk__0 = 0;
+    dawn_clear_clock_edges(dut->rootp);
 #endif
+}
+
+// The VGA counters are a free-running divider off io_vga_clk: hCount wraps
+// every H_TOTAL cycles and hsync is asserted for only part of that, so hsync
+// has to change state well inside one line of leaving reset. If it never does,
+// the model is not being clocked at all. Without this check that failure is
+// invisible -- the vsync wait in the frame loop below just spins forever and
+// no frame is ever written.
+static bool check_clock_runs(const std::unique_ptr<VMain>& dut, MemModel& mem) {
+    const bool first = dut->io_hsync;
+    for (int i = 0; i < 4 * H_TOTAL; i++) {
+        mem_step(dut, mem);
+        advance_cycle(dut);
+        if (bool(dut->io_hsync) != first) return true;
+    }
+    return false;
 }
 
 int main(int argc, char** argv) {
@@ -324,6 +381,18 @@ int main(int argc, char** argv) {
     int pixelIdx = 0;
 
     MemModel mem;
+
+    if (!check_clock_runs(dut, mem)) {
+        fprintf(stderr,
+                "FATAL: hsync never changed in %d cycles -- the model is not being clocked.\n"
+                "       advance_cycle() pokes Verilator's internal edge-detect state, and\n"
+                "       this Verilator (%s) evidently keeps it somewhere this build does\n"
+                "       not know about. Rebuild with the portable two-eval clocking:\n"
+                "         DAWN_CXXFLAGS=\"-O3 -march=native -DDAWN_SLOW_CLOCK\" ./scripts/build_sim.sh\n",
+                4 * H_TOTAL, Verilated::productVersion());
+        free(mock_ddr);
+        return 1;
+    }
 
     const auto t_start = std::chrono::steady_clock::now();
     auto t_frame = t_start;

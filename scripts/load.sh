@@ -9,7 +9,7 @@ HEX="/tmp/build_out.hex"
 echo "Converting..."
 python ./scripts/convert.py "$BIN" "$HEX" || exit 1
 echo "Loading program..."
-python ./scripts/load_program.py "$HEX" --port /dev/ttyUSB1
+python ./scripts/load_program.py "$HEX" --port /dev/ttyUSB0
 echo "Cleaning up..."
 rm -f "$HEX"
 echo "Done."
